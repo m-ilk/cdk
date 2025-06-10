@@ -109,7 +109,7 @@ export class ApiStack extends Construct {
 
         // Add EC2 capacity to the cluster
         cluster.addCapacity('DefaultAutoScalingGroup', {
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
             minCapacity: 1,
             maxCapacity: 2,
             vpcSubnets: {
