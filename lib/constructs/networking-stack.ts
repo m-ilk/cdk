@@ -109,40 +109,21 @@ export class NetworkingStack extends Construct {
       'Allow MySQL access from ECS tasks'
     );
 
-    // Create IAM role for Session Manager
-    const sessionManagerRole = new iam.Role(this, 'SessionManagerRole', {
-      assumedBy: new iam.ServicePrincipal('ssm.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonRDSDataFullAccess')
-      ]
-    });
+    // Allow inbound MySQL traffic from anywhere
+    dbSecurityGroup.addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(3306),
+      'Allow MySQL access from anywhere'
+    );
 
-    // Create security group for database access instance
-    const dbAccessSecurityGroup = new ec2.SecurityGroup(this, 'DbAccessSecurityGroup', {
-      vpc: this.vpc,
-      description: 'Security group for database access instance',
-      allowAllOutbound: true,
-    });
-
-    // Create EC2 instance for database access
-    const dbAccessInstance = new ec2.Instance(this, 'DbAccessInstance', {
+    // Create a new subnet group for RDS using public subnets
+    const dbSubnetGroup = new rds.SubnetGroup(this, 'PublicDbSubnetGroup', {
+      description: 'Public subnet group for RDS',
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PUBLIC,
       },
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
-      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
-      securityGroup: dbAccessSecurityGroup,
-      role: sessionManagerRole,
     });
-
-    // Allow RDS access from the database access instance
-    dbSecurityGroup.addIngressRule(
-      ec2.Peer.securityGroupId(dbAccessSecurityGroup.securityGroupId),
-      ec2.Port.tcp(3306),
-      'Allow MySQL access from database access instance'
-    );
 
     // Create RDS MySQL Instance
     this.dbInstance = new rds.DatabaseInstance(this, 'Database', {
@@ -151,7 +132,7 @@ export class NetworkingStack extends Construct {
       }),
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PUBLIC,
       },
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       securityGroups: [dbSecurityGroup],
@@ -163,6 +144,8 @@ export class NetworkingStack extends Construct {
       multiAz: false,
       autoMinorVersionUpgrade: true,
       removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
+      publiclyAccessible: true,
+      subnetGroup: dbSubnetGroup,
     });
 
     // Add tags to RDS instance

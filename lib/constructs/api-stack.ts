@@ -8,6 +8,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sns from 'aws-cdk-lib/aws-sns';
 import { Construct } from 'constructs';
 import { NetworkingStack } from './networking-stack';
 import { config } from '../config';
@@ -19,6 +20,8 @@ export class ApiStack extends Construct {
     public readonly targetGroup: elbv2.ApplicationTargetGroup;
     public readonly listener: elbv2.ApplicationListener;
     public readonly fileBucket: s3.Bucket;
+    public readonly smsTopic: sns.Topic;
+    public readonly pushTopic: sns.Topic;
 
     constructor(scope: Construct, id: string, networking: NetworkingStack, hostedZone: route53.IHostedZone) {
         super(scope, id);
@@ -130,6 +133,50 @@ export class ApiStack extends Construct {
             taskRole: taskRole,
         });
 
+        // Create SNS topics
+        this.smsTopic = new sns.Topic(this, 'SmsTopic', {
+            displayName: 'WhatToDos SMS Notifications',
+            topicName: 'whattodos-sms-notifications'
+        });
+
+        this.pushTopic = new sns.Topic(this, 'PushTopic', {
+            displayName: 'WhatToDos Push Notifications',
+            topicName: 'whattodos-push-notifications'
+        });
+
+        // Add SMS permissions to task role
+        taskRole.addToPolicy(new iam.PolicyStatement({
+            actions: [
+                'sns:Publish',
+                'sns:SetSMSAttributes',
+                'sns:GetSMSAttributes'
+            ],
+            resources: [
+                this.smsTopic.topicArn,
+                this.pushTopic.topicArn
+            ]
+        }));
+
+        // Add environment variables for SNS topics
+        const containerEnvironment = {
+            NODE_ENV: 'production',
+            PORT: '3000',
+            DB_HOST: networking.dbInstance.dbInstanceEndpointAddress,
+            DB_PORT: networking.dbInstance.dbInstanceEndpointPort.toString(),
+            DB_NAME: 'whattodos',
+            DB_USER: 'whattodos',
+            DB_PASSWORD: 'whattodos123',
+            REDIS_HOST: networking.redisCluster.attrRedisEndpointAddress,
+            REDIS_PORT: '6379',
+            AWS_REGION: cdk.Stack.of(this).region,
+            AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
+            AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+            BUILD_ARTIFACTS_BUCKET: `whattodos-api-build-artifacts-${cdk.Stack.of(this).account}`,
+            AWS_S3_BUCKET: this.fileBucket.bucketName,
+            SMS_TOPIC_ARN: this.smsTopic.topicArn,
+            PUSH_TOPIC_ARN: this.pushTopic.topicArn
+        };
+
         // Add container to task definition
         taskDefinition.addContainer('ApiContainer', {
             image: ecs.ContainerImage.fromRegistry('node:20-alpine'),
@@ -151,22 +198,7 @@ export class ApiStack extends Construct {
             ],
             memoryLimitMiB: 512,
             memoryReservationMiB: 256,
-            environment: {
-                NODE_ENV: 'production',
-                PORT: '3000',
-                DB_HOST: networking.dbInstance.dbInstanceEndpointAddress,
-                DB_PORT: networking.dbInstance.dbInstanceEndpointPort.toString(),
-                DB_NAME: 'whattodos',
-                DB_USER: 'whattodos',
-                DB_PASSWORD: 'whattodos123',
-                REDIS_HOST: networking.redisCluster.attrRedisEndpointAddress,
-                REDIS_PORT: '6379',
-                AWS_REGION: cdk.Stack.of(this).region,
-                AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
-                AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
-                BUILD_ARTIFACTS_BUCKET: `whattodos-api-build-artifacts-${cdk.Stack.of(this).account}`,
-                AWS_S3_BUCKET: this.fileBucket.bucketName
-            },
+            environment: containerEnvironment,
             healthCheck: {
                 command: [
                     'CMD-SHELL',
@@ -208,6 +240,8 @@ export class ApiStack extends Construct {
                     aws s3 cp s3://$BUILD_ARTIFACTS_BUCKET/taskdef.json . || { echo "Failed to download taskdef.json"; exit 1; }
                     echo "Starting application..."
                     npm install --production || { echo "Failed to install dependencies"; exit 1; }
+                    echo "Running database migrations..."
+                    npx typeorm-ts-node-commonjs -d ./dist/config/database.js migration:run || { echo "Failed to run migrations"; exit 1; }
                     echo "Starting app.js..."
                     node dist/app.js || { echo "Failed to start application"; exit 1; }
                 else
@@ -294,6 +328,17 @@ export class ApiStack extends Construct {
         // Output the ALB DNS name
         new cdk.CfnOutput(this, 'AlbDnsName', {
             value: this.alb.loadBalancerDnsName,
+        });
+
+        // Output SNS topic ARNs
+        new cdk.CfnOutput(this, 'SmsTopicArn', {
+            value: this.smsTopic.topicArn,
+            description: 'SNS Topic ARN for SMS notifications'
+        });
+
+        new cdk.CfnOutput(this, 'PushTopicArn', {
+            value: this.pushTopic.topicArn,
+            description: 'SNS Topic ARN for push notifications'
         });
     }
 } 
