@@ -66,67 +66,135 @@ The infrastructure consists of several key components:
 
 ```mermaid
 graph TD
-    subgraph "Networking"
-        VPC[VPC]
-        PublicSubnet[Public Subnets]
-        PrivateSubnet[Private Subnets]
-        NAT[NAT Gateway]
-        ALB[Application Load Balancer]
+    %% AWS Services
+    subgraph "AWS Cloud"
+        subgraph "Networking"
+            VPC[VPC]
+            PublicSubnet1[Public Subnet AZ1]
+            PublicSubnet2[Public Subnet AZ2]
+            PrivateSubnet1[Private Subnet AZ1]
+            PrivateSubnet2[Private Subnet AZ2]
+            NAT[NAT Gateway]
+            IGW[Internet Gateway]
+            ALB[Application Load Balancer]
+            RouteTable[Route Tables]
+        end
+
+        subgraph "Compute & Container"
+            ECS[ECS Cluster]
+            EC2[EC2 Instances]
+            Task[ECS Task]
+            Container[Node.js Container]
+            AutoScaling[Auto Scaling Group]
+        end
+
+        subgraph "Database"
+            RDS[(RDS MySQL)]
+            ReadReplica[(Read Replica)]
+            Redis[(ElastiCache Redis)]
+            ParameterStore[Systems Manager Parameter Store]
+        end
+
+        subgraph "Storage"
+            S3Files[S3 - User Files]
+            S3Build[S3 - Build Artifacts]
+            EFS[EFS - Shared Storage]
+        end
+
+        subgraph "Security"
+            ACM[ACM Certificate]
+            WAF[WAF]
+            SecretsManager[Secrets Manager]
+            IAM[IAM Roles]
+        end
+
+        subgraph "CI/CD"
+            Pipeline[CodePipeline]
+            Build[CodeBuild]
+            GitHub[GitHub]
+            CodeDeploy[CodeDeploy]
+        end
+
+        subgraph "Monitoring"
+            CloudWatch[CloudWatch]
+            XRay[X-Ray]
+            Alarms[CloudWatch Alarms]
+            Logs[CloudWatch Logs]
+        end
     end
 
-    subgraph "Database"
-        RDS[(RDS MySQL)]
-        Redis[(Redis Cluster)]
-    end
-
-    subgraph "Application"
-        ECS[ECS Cluster]
-        Task[ECS Task]
-        Container[Node.js Container]
-    end
-
-    subgraph "Storage"
-        S3Files[S3 - User Files]
-        S3Build[S3 - Build Artifacts]
-    end
-
-    subgraph "CI/CD"
-        Pipeline[CodePipeline]
-        Build[CodeBuild]
-        GitHub[GitHub]
-    end
+    %% External Services
+    Internet((Internet))
+    GitHub((GitHub))
+    CDN[CloudFront CDN]
 
     %% Connections
-    Internet((Internet)) --> ALB
-    ALB --> Task
-    Task --> RDS
-    Task --> Redis
-    Task --> S3Files
-    
-    PublicSubnet --> ALB
-    PrivateSubnet --> Task
-    PrivateSubnet --> RDS
-    PrivateSubnet --> Redis
-    
-    NAT --> Internet
-    PrivateSubnet --> NAT
-    
+    Internet --> CDN
+    CDN --> WAF
+    WAF --> ALB
+    ALB --> ECS
+    ECS --> Task
+    Task --> Container
+
+    %% Networking Connections
+    Internet --> IGW
+    IGW --> PublicSubnet1
+    IGW --> PublicSubnet2
+    PublicSubnet1 --> ALB
+    PublicSubnet2 --> ALB
+    PublicSubnet1 --> NAT
+    PublicSubnet2 --> NAT
+    NAT --> PrivateSubnet1
+    NAT --> PrivateSubnet2
+
+    %% Database Connections
+    Container --> RDS
+    Container --> ReadReplica
+    Container --> Redis
+    Container --> ParameterStore
+
+    %% Storage Connections
+    Container --> S3Files
+    Container --> S3Build
+    Container --> EFS
+
+    %% Security Connections
+    ACM --> ALB
+    SecretsManager --> Container
+    IAM --> Task
+    IAM --> Build
+
+    %% CI/CD Connections
     GitHub --> Pipeline
     Pipeline --> Build
     Build --> S3Build
-    S3Build --> Task
+    Build --> CodeDeploy
+    CodeDeploy --> ECS
 
-    %% Security Groups
-    ALBSG[ALB Security Group]
-    TaskSG[Task Security Group]
-    RDSSG[RDS Security Group]
-    RedisSG[Redis Security Group]
-    
-    ALB --> ALBSG
-    Task --> TaskSG
-    RDS --> RDSSG
-    Redis --> RedisSG
+    %% Monitoring Connections
+    Container --> CloudWatch
+    Container --> XRay
+    CloudWatch --> Alarms
+    Container --> Logs
+
+    %% Auto Scaling
+    AutoScaling --> ECS
+    Alarms --> AutoScaling
+
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef external fill:#666,stroke:#333,stroke-width:2px,color:white;
+    class VPC,PublicSubnet1,PublicSubnet2,PrivateSubnet1,PrivateSubnet2,NAT,IGW,ALB,RouteTable aws;
+    class Internet,GitHub,CDN external;
 ```
+
+This diagram shows:
+- All major AWS services used in the infrastructure
+- How services are connected and interact
+- Security boundaries and access patterns
+- Data flow between components
+- Monitoring and logging setup
+- CI/CD pipeline integration
 
 ## Prerequisites
 
