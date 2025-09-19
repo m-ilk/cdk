@@ -109,7 +109,7 @@ export class ApiStack extends Construct {
 
         // Add EC2 capacity to the cluster
         cluster.addCapacity('DefaultAutoScalingGroup', {
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO), // Upgraded from MICRO
             minCapacity: 1,
             maxCapacity: 2,
             vpcSubnets: {
@@ -199,16 +199,17 @@ export class ApiStack extends Construct {
             memoryLimitMiB: 512,
             memoryReservationMiB: 256,
             environment: containerEnvironment,
-            healthCheck: {
-                command: [
-                    'CMD-SHELL',
-                    'wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1',
-                ],
-                interval: cdk.Duration.seconds(30),
-                timeout: cdk.Duration.seconds(5),
-                retries: 3,
-                startPeriod: cdk.Duration.seconds(60),
-            },
+            // Container health check disabled - using ALB target group health check instead
+            // healthCheck: {
+            //     command: [
+            //         'CMD-SHELL',
+            //         'wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1',
+            //     ],
+            //     interval: cdk.Duration.seconds(30),
+            //     timeout: cdk.Duration.seconds(5),
+            //     retries: 3,
+            //     startPeriod: cdk.Duration.seconds(60),
+            // },
             command: [
                 'sh',
                 '-c',
@@ -279,7 +280,7 @@ export class ApiStack extends Construct {
             targetType: elbv2.TargetType.IP,
             healthCheck: {
                 path: '/health',
-                interval: cdk.Duration.seconds(30),
+                interval: cdk.Duration.seconds(60),
                 timeout: cdk.Duration.seconds(5),
                 healthyHttpCodes: '200',
                 unhealthyThresholdCount: 2,

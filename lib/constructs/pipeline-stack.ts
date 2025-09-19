@@ -108,7 +108,7 @@ export class PipelineStack extends Construct {
             actionName: 'API-Source',
             owner: 'whattodos',
             repo: 'fungi-api',
-            branch: 'feature/aws-deployment',
+            branch: 'release/09-17',
             oauthToken: cdk.SecretValue.secretsManager(GITHUB_TOKEN_SECRET_NAME),
             output: apiSourceOutput,
         });
