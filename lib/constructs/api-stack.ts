@@ -74,6 +74,17 @@ export class ApiStack extends Construct {
             resources: ['*']
         }));
 
+        // Add SNS Platform Application permissions for push notifications (APNS/FCM)
+        taskRole.addToPolicy(new iam.PolicyStatement({
+            actions: [
+                'sns:CreatePlatformEndpoint',
+                'sns:GetEndpointAttributes',
+                'sns:SetEndpointAttributes',
+                'sns:DeleteEndpoint'
+            ],
+            resources: ['*']
+        }));
+
         // Add SMS Voice permissions to task role
         taskRole.addToPolicy(new iam.PolicyStatement({
             actions: [
@@ -109,7 +120,7 @@ export class ApiStack extends Construct {
 
         // Add EC2 capacity to the cluster
         cluster.addCapacity('DefaultAutoScalingGroup', {
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO), // Upgraded from MICRO
+            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
             minCapacity: 1,
             maxCapacity: 2,
             vpcSubnets: {

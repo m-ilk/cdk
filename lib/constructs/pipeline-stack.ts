@@ -108,7 +108,7 @@ export class PipelineStack extends Construct {
             actionName: 'API-Source',
             owner: 'whattodos',
             repo: 'fungi-api',
-            branch: 'release/09-17',
+            branch: 'develop',
             oauthToken: cdk.SecretValue.secretsManager(GITHUB_TOKEN_SECRET_NAME),
             output: apiSourceOutput,
         });
@@ -134,6 +134,11 @@ export class PipelineStack extends Construct {
                     },
                     AWS_REGION: {
                         value: cdk.Stack.of(this).region,
+                        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+                    },
+                    //todo use cdk to create snsao
+                    AWS_SNS_IOS_PLATFORM_ARN: {
+                        value: 'arn:aws:sns:us-east-1:716641879475:app/APNS/whale2go-ios-production',
                         type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
                     },
                     REDIS_HOST: {

@@ -16,9 +16,10 @@ export class WebsiteStack extends Construct {
   constructor(scope: Construct, id: string, hostedZone: route53.IHostedZone) {
     super(scope, id);
 
+    const domainName = `${config.domain.wwwSubdomain}.whale2go.com`;
     // Create S3 bucket for website
     this.bucket = new s3.Bucket(this, 'WebsiteBucket', {
-      bucketName: `${config.domain.wwwSubdomain}.${config.domain.name}`,
+      bucketName: domainName,
       websiteIndexDocument: 'index.html',
       websiteErrorDocument: 'index.html',
       blockPublicAccess: new s3.BlockPublicAccess({
@@ -40,7 +41,7 @@ export class WebsiteStack extends Construct {
             s3.HttpMethods.POST,
             s3.HttpMethods.DELETE,
           ],
-          allowedOrigins: [`https://${config.domain.apiSubdomain}.${config.domain.name}`],
+          allowedOrigins: [`https://${domainName}`],
           allowedHeaders: ['*'],
           exposedHeaders: [
             'ETag',
@@ -62,8 +63,19 @@ export class WebsiteStack extends Construct {
 
     // Create SSL Certificate
     const certificate = new acm.Certificate(this, 'WebsiteCertificate', {
-      domainName: `${config.domain.wwwSubdomain}.${config.domain.name}`,
+      domainName: domainName,
       validation: acm.CertificateValidation.fromDns(hostedZone),
+    });
+
+    // Create custom cache policy for faster updates
+    const customCachePolicy = new cloudfront.CachePolicy(this, 'WebsiteCachePolicy', {
+      cachePolicyName: 'WebsiteOptimized',
+      comment: 'Cache policy optimized for website with shorter TTL',
+      defaultTtl: cdk.Duration.minutes(5),
+      maxTtl: cdk.Duration.hours(1),
+      minTtl: cdk.Duration.seconds(0),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
     });
 
     // Create CloudFront Distribution
@@ -71,11 +83,11 @@ export class WebsiteStack extends Construct {
       defaultBehavior: {
         origin: new origins.S3Origin(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        cachePolicy: customCachePolicy,
         originRequestPolicy: cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
       },
-      domainNames: [`${config.domain.wwwSubdomain}.${config.domain.name}`],
+      domainNames: [domainName],
       certificate: certificate,
       errorResponses: [
         {
@@ -92,7 +104,7 @@ export class WebsiteStack extends Construct {
       target: route53.RecordTarget.fromAlias(
         new targets.CloudFrontTarget(this.distribution)
       ),
-      recordName: `${config.domain.wwwSubdomain}.${config.domain.name}`,
+      recordName: domainName,
     });
 
     // Output the CloudFront URL

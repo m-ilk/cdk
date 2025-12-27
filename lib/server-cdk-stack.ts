@@ -21,11 +21,16 @@ export class ServerCdkStack extends cdk.Stack {
       comment: 'Hosted zone for WhatToDos application',
     });
 
+    const whale2goHostedZone = new route53.HostedZone(this, 'Whale2GoHostedZone', {
+      zoneName: 'whale2go.com',
+      comment: 'Hosted zone for Whale2Go application',
+    });
+
     // Create networking resources
     const networking = new NetworkingStack(this, 'NetworkingStack');
 
     // Create website resources
-    const website = new WebsiteStack(this, 'WebsiteStack', hostedZone);
+    const website = new WebsiteStack(this, 'WebsiteStack', whale2goHostedZone);
 
     // Create API resources
     const api = new ApiStack(this, 'ApiStack', networking, hostedZone);
