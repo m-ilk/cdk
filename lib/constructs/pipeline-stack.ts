@@ -136,7 +136,7 @@ export class PipelineStack extends Construct {
                         value: cdk.Stack.of(this).region,
                         type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
                     },
-                    //todo use cdk to create snsao
+                    //todo use cdk to create sns
                     AWS_SNS_IOS_PLATFORM_ARN: {
                         value: 'arn:aws:sns:us-east-1:716641879475:app/APNS/whale2go-ios-production',
                         type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
